@@ -35,7 +35,7 @@
 
 <script>
   // PENTING: Masukkan URL Web App Google Script Anda (Gunakan link berakhiran /exec)
-  const GOOGLE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyLlIJWl6jhCmc8rQX7PqUmaQsgWJWTODBFQ21p-vWPoUTWychRGW_JHdTz8epxvwSNgw/exec";
+  const GOOGLE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyYiUnsFIYVkEZyvSv0mgd0Tr9u_ksNIU7nzTnlwHqc_v4TUZr5Gzu_D-vtK9-KndONqA/exec";
 
   window.onload = function() {
     Quagga.init({
@@ -54,7 +54,7 @@
     Quagga.onDetected(function(data) {
       let code = data.codeResult.code;
       if (code && code.includes("VCHR-")) {
-        Quagga.stop(); // Hentikan kamera sementara agar data tidak dikirim berkali-kali
+        Quagga.stop(); // Hentikan kamera sementara
         
         let alertBox = document.getElementById('statusAlert');
         document.getElementById('scanResult').innerText = code;
@@ -63,17 +63,20 @@
         alertBox.classList.add('alert-warning');
         alertBox.innerText = "⏳ Memverifikasi aturan voucher di Google Sheets...";
 
-        // Menembakkan kode voucher langsung ke aturan validasi database Google Sheets
+        // Tembak data ke Google Script
         fetch(`${GOOGLE_WEBAPP_URL}?scanCode=${encodeURIComponent(code)}`)
-        .then(response => response.json())
-        .then(res => {
+        .then(response => response.text()) // Baca sebagai text murni untuk bypass CORS
+        .then(textData => {
+          // Konversi manual text dari Google menjadi Object JSON
+          let res = JSON.parse(textData);
+          
           alertBox.classList.remove('alert-warning');
           alertBox.classList.add(res.success ? 'alert-success' : 'alert-danger');
           
-          // Menampilkan pesan live aturan webapp (Contoh: "Voucher Kedaluwarsa", "Sudah pernah digunakan", dll.)
+          // Menampilkan pesan live dari aturan database (Sukses / Expired / Sudah Terpakai)
           alertBox.innerHTML = res.msg;
 
-          // Kamera akan otomatis aktif kembali setelah 4 detik untuk memindai voucher berikutnya
+          // Kamera aktif kembali setelah 4 detik
           setTimeout(() => {
             alertBox.classList.add('d-none');
             Quagga.start();
@@ -82,7 +85,7 @@
         .catch(err => {
           alertBox.classList.remove('alert-warning');
           alertBox.classList.add('alert-danger');
-          alertBox.innerText = "⚠️ Gangguan Koneksi: Jaringan gagal terhubung.";
+          alertBox.innerText = "⚠️ Gangguan Koneksi: Gagal merespons data dari Google.";
           setTimeout(() => { Quagga.start(); }, 3000);
         });
       }
