@@ -34,64 +34,56 @@
 </div>
 
 <script>
-  // PENTING: Ganti URL di bawah ini dengan URL Web App Google Script Anda yang berakhiran /exec
-  const GOOGLE_WEBAPP_URL = "ISI_DENGAN_URL_WEB_APP_ANDA_DISINI";
+  // PENTING: Masukkan URL Web App Google Script Anda (Gunakan link berakhiran /exec)
+  const GOOGLE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycb...ISI_LINK_ANDA.../exec";
 
-  // Inisialisasi Detektor Kamera Barcode
   window.onload = function() {
     Quagga.init({
       inputStream: {
         name: "Live",
         type: "LiveStream",
         target: document.querySelector('#interactive'),
-        constraints: {
-          facingMode: "environment" // Paksa pakai kamera belakang HP
-        },
+        constraints: { facingMode: "environment" }
       },
-      decoder: {
-        readers: ["code_128_reader"] // Format kode barcode generator kita
-      }
+      decoder: { readers: ["code_128_reader"] }
     }, function(err) {
-      if (err) {
-        alert("Gagal memuat kamera: " + err);
-        return;
-      }
+      if (err) { alert("Gagal memuat kamera: " + err); return; }
       Quagga.start();
     });
 
-    // Aksi ketika barcode terdeteksi kamera
     Quagga.onDetected(function(data) {
       let code = data.codeResult.code;
-      if (code && code.includes("VCHR-")) { // Validasi awal kode voucher
-        Quagga.stop(); // Hentikan kamera sementara agar tidak mendobel kirim data
+      if (code && code.includes("VCHR-")) {
+        Quagga.stop(); // Hentikan kamera sementara agar data tidak dikirim berkali-kali
         
         let alertBox = document.getElementById('statusAlert');
         document.getElementById('scanResult').innerText = code;
+        
         alertBox.classList.remove('d-none', 'alert-info', 'alert-success', 'alert-danger');
         alertBox.classList.add('alert-warning');
-        alertBox.innerText = "Mengirim data ke Google Sheets...";
+        alertBox.innerText = "⏳ Memverifikasi aturan voucher di Google Sheets...";
 
-        // Otomatis menembakkan kode ke backend Google Sheets Anda (Autofill & Auto-Redeem)
-        fetch(GOOGLE_WEBAPP_URL, {
-          method: "POST",
-          mode: "no-cors", // Mengatasi proteksi pembatasan lintas domain browser
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: code })
-        })
-        .then(() => {
+        // Menembakkan kode voucher langsung ke aturan validasi database Google Sheets
+        fetch(`${GOOGLE_WEBAPP_URL}?scanCode=${encodeURIComponent(code)}`)
+        .then(response => response.json())
+        .then(res => {
           alertBox.classList.remove('alert-warning');
-          alertBox.classList.add('alert-success');
-          alertBox.innerHTML = `🎉 Sukses! Kode <b>${code}</b> telah diredeem.`;
+          alertBox.classList.add(res.success ? 'alert-success' : 'alert-danger');
           
-          // Nyalakan kembali kamera setelah jeda 3 detik untuk scan voucher selanjutnya
-          setTimeout(() => { 
-            alertBox.classList.add('d-none'); 
-            Quagga.start(); 
-          }, 3000);
+          // Menampilkan pesan live aturan webapp (Contoh: "Voucher Kedaluwarsa", "Sudah pernah digunakan", dll.)
+          alertBox.innerHTML = res.msg;
+
+          // Kamera akan otomatis aktif kembali setelah 4 detik untuk memindai voucher berikutnya
+          setTimeout(() => {
+            alertBox.classList.add('d-none');
+            Quagga.start();
+          }, 4000);
         })
         .catch(err => {
-          alert("Gagal memproses data: " + err);
-          Quagga.start();
+          alertBox.classList.remove('alert-warning');
+          alertBox.classList.add('alert-danger');
+          alertBox.innerText = "⚠️ Gangguan Koneksi: Jaringan gagal terhubung.";
+          setTimeout(() => { Quagga.start(); }, 3000);
         });
       }
     });
